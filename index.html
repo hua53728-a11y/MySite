@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1680, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>智能电费核算监控</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js">
+</script>
+<style>
+:root{
+  --bg:#080c1a; --card:#0f1429; --card2:#141c36; --text:#e4e9f2; --muted:#7b86a6;
+  --blue:#3b82f6; --cyan:#06b6d4; --teal:#14b8a6; --green:#10b981; --amber:#f59e0b;
+  --orange:#f97316; --red:#ef4444; --purple:#8b5cf6; --pink:#ec4899;
+  --border:rgba(255,255,255,.05); --r:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1680px;height:1050px;overflow:hidden}
+body{
+  font-family:'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif;
+  background:var(--bg); color:var(--text);
+  background-image:
+    radial-gradient(ellipse at 18% 0%, rgba(59,130,246,.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 82% 100%, rgba(139,92,246,.05) 0%, transparent 50%);
+}
+
+/* ── header 42px ── */
+.hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  height:42px;padding:0 24px;flex-shrink:0;
+  background:rgba(15,20,41,.88);backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--border);
+}
+.hdr-l{display:flex;align-items:center;gap:10px}
+.hdr-logo{width:26px;height:26px;border-radius:7px;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));
+  display:flex;align-items:center;justify-content:center;font-size:14px}
+.hdr h1{font-size:15px;font-weight:700;
+  background:linear-gradient(90deg,var(--cyan),var(--blue));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr-m{display:flex;gap:18px;font-size:10px;color:var(--muted)}
+.hdr-m b{color:var(--text);font-weight:600}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:4px}
+.dot.g{background:var(--green);box-shadow:0 0 5px var(--green)}
+.clock{font-size:13px;color:var(--cyan);font-variant-numeric:tabular-nums}
+
+/* ── main container ── */
+.main{width:1680px;padding:8px 24px 6px;display:flex;flex-direction:column;gap:8px;height:1008px}
+
+/* ── pipeline 6 cards (compact) ── */
+.pipe-row{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;flex-shrink:0}
+.p-card{
+  background:var(--card);border-radius:var(--r);padding:8px 8px 7px;text-align:center;
+  border:1px solid var(--border);position:relative;overflow:hidden;cursor:default;
+  transition:all .2s;
+}
+.p-card:hover{background:var(--card2);transform:translateY(-2px)}
+.p-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.p-card.c0::before{background:var(--blue)}  .p-card.c1::before{background:var(--cyan)}
+.p-card.c2::before{background:var(--teal)}  .p-card.c3::before{background:var(--green)}
+.p-card.c4::before{background:var(--amber)} .p-card.c5::before{background:var(--purple)}
+.p-icon{font-size:22px;line-height:1.1}
+.p-label{font-size:9px;color:var(--muted);margin:2px 0;white-space:nowrap}
+.p-val{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.p-sub{font-size:8px;color:var(--muted)}
+
+/* ── finance 5 cards (compact) ── */
+.fin-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;flex-shrink:0}
+.f-card{
+  background:var(--card);border-radius:var(--r);padding:8px 12px;
+  border:1px solid var(--border);display:flex;align-items:center;gap:10px;
+  cursor:default;transition:all .2s;
+}
+.f-card:hover{background:var(--card2);transform:translateY(-2px)}
+.f-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-size:17px;flex-shrink:0}
+.f-icon.b0{background:rgba(59,130,246,.14);color:var(--blue)}
+.f-icon.b1{background:rgba(6,182,212,.14);color:var(--cyan)}
+.f-icon.b2{background:rgba(16,185,129,.14);color:var(--green)}
+.f-icon.b3{background:rgba(245,158,11,.14);color:var(--amber)}
+.f-icon.b4{background:rgba(139,92,246,.14);color:var(--purple)}
+.f-info{flex:1;min-width:0}
+.f-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.f-val{font-size:18px;font-weight:700;display:flex;align-items:baseline;gap:3px}
+.f-unit{font-size:10px;font-weight:400;color:var(--muted)}
+.f-detail{font-size:9px;color:var(--muted);margin-top:1px}
+.f-bar{height:3px;border-radius:2px;margin-top:4px;overflow:hidden;display:flex}
+.f-bar .f-fill{height:100%;border-radius:2px}
+
+/* ── chart panels ── */
+.cgrid{display:grid;gap:8px;flex-shrink:0}
+.cgrid.x2{grid-template-columns:1.6fr 1fr}
+.cgrid.x3{grid-template-columns:1fr 1fr 1fr}
+.pnl{background:var(--card);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column}
+.pnl-hd{display:flex;align-items:center;justify-content:space-between;
+  padding:7px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.pnl-tt{font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
+.tag{font-size:8px;padding:1px 6px;border-radius:8px;background:rgba(59,130,246,.12);color:var(--blue)}
+.pnl-bd{flex:1;padding:2px;min-height:0}
+.ec{width:100%;height:100%}
+
+/* ── table ── */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{padding:5px 12px;color:var(--muted);font-weight:500;font-size:9px;
+  text-transform:uppercase;border-bottom:1px solid var(--border);text-align:left}
+.tbl td{padding:4px 12px;border-bottom:1px solid rgba(255,255,255,.02)}
+.tbl tr:hover td{background:rgba(255,255,255,.015)}
+.badge{display:inline-block;padding:1px 6px;border-radius:7px;font-size:8px;font-weight:700}
+.badge.ok{background:rgba(16,185,129,.14);color:var(--green)}
+.badge.w{background:rgba(245,158,11,.14);color:var(--amber)}
+.badge.e{background:rgba(239,68,68,.14);color:var(--red)}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-l">
+    <div class="hdr-logo">⚡</div>
+    <h1>智能电费核算监控</h1>
+  </div>
+  <div class="hdr-m">
+    <span><b class="dot g"></b>系统正常</span>
+    <span></span>
+    <span>2026年07月</span>
+  </div>
+  <div class="clock" id="clock">--</div>
+</header>
+
+<div class="main">
+
+  <!-- ══ 6阶段流水线 ══ -->
+  <div class="pipe-row" id="pipeRow"></div>
+
+  <!-- ══ 发行核心指标 ══ -->
+  <div class="fin-row" id="finRow"></div>
+
+  <!-- ══ 图表行1：电费趋势 + 漏斗 ══ -->
+  <div class="cgrid x2" style="flex:1.55">
+    <div class="pnl">
+      <div class="pnl-hd"><span class="pnl-tt">📈 电费收入趋势 <span class="tag">近12月</span></span></div>
+      <div class="pnl-bd"><div class="ec" id="cBilling"></div></div>
+    </div>
+    <div class="pnl">
+      <div class="pnl-hd"><span class="pnl-tt">🔽 业务发行漏斗</span></div>
+      <div class="pnl-bd"><div class="ec" id="cFunnel"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ 图表行2：异常 + TOP10 + 欠费 ══ -->
+  <div class="cgrid x3" style="flex:1.25">
+    <div class="pnl">
+      <div class="pnl-hd"><span class="pnl-tt">⚠️ 异常类型分布</span></div>
+      <div class="pnl-bd"><div class="ec" id="cAnomaly"></div></div>
+    </div>
+    <div class="pnl">
+      <div class="pnl-hd"><span class="pnl-tt">🏆 用电量 TOP10</span></div>
+      <div class="pnl-bd"><div class="ec" id="cTop"></div></div>
+    </div>
+    <div class="pnl">
+      <div class="pnl-hd"><span class="pnl-tt">💰 欠费风险热力</span></div>
+      <div class="pnl-bd"><div class="ec" id="cArrears"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ 告警表格 ══ -->
+  <div class="pnl" style="flex:1;min-height:0">
+    <div class="pnl-hd"><span class="pnl-tt">📋 近期告警 / 异常工单 <span class="tag">实时</span></span></div>
+    <div class="pnl-bd" style="padding:0;overflow-y:auto">
+      <table class="tbl">
+        <thead><tr><th>时间</th><th>单位</th><th>用户编号</th><th>异常类型</th><th>描述</th><th>风险</th><th>状态</th></tr></thead>
+        <tbody id="tblBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var C={};
+function ech(id){var d=document.getElementById(id);if(!d)return null;if(C[id])C[id].dispose();var c=echarts.init(d,null,{devicePixelRatio:2});C[id]=c;return c}
+
+function getData(){
+  return {
+    pipeline:[
+      {icon:'👥',label:'运行用户总数',val:0,sub:'KH_YDKH',color:'var(--blue)',cls:'c0'},
+      {icon:'🔓',label:'抄表数据开放',val:0,sub:'已开放用户',color:'var(--cyan)',cls:'c1'},
+      {icon:'📝',label:'已抄表用户',val:0,sub:'已完成抄表',color:'var(--teal)',cls:'c2'},
+      {icon:'🧮',label:'已计算用户',val:0,sub:'已完成计算',color:'var(--green)',cls:'c3'},
+      {icon:'🔍',label:'已核查用户',val:0,sub:'已完成核查',color:'var(--amber)',cls:'c4'},
+      {icon:'✅',label:'已发行用户',val:0,sub:'已完成发行',color:'var(--purple)',cls:'c5'}
+    ],
+    finance:{
+      baseFee:18562340.50,totalFee:31507890.75,totalKwh:42680000,
+      publicKwh:28750000,specialKwh:13930000,publicUsers:5890,specialUsers:1955,avgPrice:0.7382
+    },
+    billingTrend:[
+      {m:'08月',v:2310},{m:'09月',v:2450},{m:'10月',v:2180},{m:'11月',v:2670},
+      {m:'12月',v:3120},{m:'01月',v:2980},{m:'02月',v:2560},{m:'03月',v:2830},
+      {m:'04月',v:2740},{m:'05月',v:3010},{m:'06月',v:2876},{m:'07月',v:3150}
+    ],
+    anomaly:[
+      {n:'电费异常',v:456},{n:'电量异常',v:312},{n:'表码异常',v:189},
+      {n:'大概率异常',v:98},{n:'其他',v:45}
+    ],
+    topConsumption:[
+      {n:'鑫达钢铁集团',v:1256},{n:'华东化工厂',v:987},{n:'万达商业广场',v:856},
+      {n:'市中医院',v:723},{n:'职业技术学院',v:654},{n:'恒大建材市场',v:589},
+      {n:'绿城物业',v:512},{n:'国际会展中心',v:478},{n:'西湖大酒店',v:445},{n:'滨江小区',v:398}
+    ],
+    arrears:[
+      {u:'城东供电所',a:356.78,c:89},{u:'城西供电所',a:289.05,c:72},
+      {u:'城南供电所',a:412.30,c:105},{u:'城北供电所',a:198.76,c:48},{u:'开发区供电所',a:521.00,c:128}
+    ],
+    alerts:[
+      {t:'07-16 10:32',u:'城东供电所',id:'YD-001234',tp:'电费异常',desc:'本月电费超出阈值230%',lv:'高',sc:'w'},
+      {t:'07-16 09:15',u:'开发区供电所',id:'YD-005678',tp:'表码异常',desc:'表码示数倒走 -1256 kWh',lv:'高',sc:'w'},
+      {t:'07-16 08:42',u:'城南供电所',id:'YD-003456',tp:'电量异常',desc:'用电量环比增长450%',lv:'中',sc:'w'},
+      {t:'07-15 17:20',u:'城西供电所',id:'YD-007890',tp:'大概率异常',desc:'连续3月用电量为零',lv:'中',sc:'ok'},
+      {t:'07-15 14:55',u:'城北供电所',id:'YD-002345',tp:'电费异常',desc:'功率因数低于0.5',lv:'低',sc:'w'},
+      {t:'07-15 11:08',u:'城东供电所',id:'YD-009012',tp:'设备故障',desc:'计量设备通信中断',lv:'高',sc:'e'}
+    ]
+  };
+}
+
+function fm(v){v=Number(v)||0;if(Math.abs(v)>=1e8)return(v/1e8).toFixed(2)+'亿';if(Math.abs(v)>=1e4)return(v/1e4).toFixed(2)+'万';return v.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+
+(function tick(){var d=new Date();document.getElementById('clock').textContent=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');setTimeout(tick,1000)})();
+
+function renderPipeline(d){
+  document.getElementById('pipeRow').innerHTML=d.map(function(r){
+    return'<div class="p-card '+r.cls+'"><div class="p-icon">'+r.icon+'</div><div class="p-label">'+r.label+'</div><div class="p-val" style="color:'+r.color+'">'+r.val.toLocaleString()+'</div><div class="p-sub">'+r.sub+'</div></div>';
+  }).join('');
+}
+
+function renderFinance(b){
+  var pubPct=b.totalKwh>0?(b.publicKwh/b.totalKwh*100).toFixed(1):'0';
+  var spcPct=b.totalKwh>0?(b.specialKwh/b.totalKwh*100).toFixed(1):'0';
+  var cards=[
+    {icon:'💵',c:'b0',l:'发行基本电费',v:'¥ '+fm(b.baseFee),d:'均价 '+b.avgPrice.toFixed(4)+' 元/kWh'},
+    {icon:'💰',c:'b1',l:'发行总电费',v:'¥ '+fm(b.totalFee),d:'含基本+力调+基金附加'},
+    {icon:'⚡',c:'b2',l:'本期总电量',v:fm(b.totalKwh)+' kWh',
+      bar:true,b1:pubPct,b2:spcPct,t:'公变 '+pubPct+'%  /  专变 '+spcPct+'%'},
+    {icon:'🏭',c:'b3',l:'公变用户',v:b.publicUsers.toLocaleString()+' 户',d:'电量 '+fm(b.publicKwh)+' kWh'},
+    {icon:'🏗️',c:'b4',l:'专变用户',v:b.specialUsers.toLocaleString()+' 户',d:'电量 '+fm(b.specialKwh)+' kWh'}
+  ];
+  document.getElementById('finRow').innerHTML=cards.map(function(x){
+    var bar='';
+    if(x.bar) bar='<div class="f-bar"><div class="f-fill" style="width:'+x.b1+'%;background:var(--blue)"></div><div class="f-fill" style="width:'+x.b2+'%;background:var(--cyan)"></div></div><div class="f-detail">'+x.t+'</div>';
+    return'<div class="f-card"><div class="f-icon '+x.c+'">'+x.icon+'</div><div class="f-info"><div class="f-label">'+x.l+'</div><div class="f-val">'+x.v+'</div>'+(x.d?'<div class="f-detail">'+x.d+'</div>':'')+bar+'</div></div>';
+  }).join('');
+}
+
+function renderBilling(d){
+  var c=ech('cBilling');if(!c)return;
+  c.setOption({
+    tooltip:{trigger:'axis',backgroundColor:'rgba(15,20,41,.96)',borderColor:'#333',textStyle:{color:'#e4e9f2',fontSize:11},
+      formatter:function(p){return'<b>'+p[0].axisValue+'</b><br/>电费：<b style="color:#3b82f6">'+p[0].value+'</b> 万元'}},
+    grid:{left:42,right:12,top:18,bottom:26},
+    xAxis:{type:'category',data:d.map(function(r){return r.m}),axisLine:{lineStyle:{color:'#333'}},axisLabel:{color:'#7b86a6',fontSize:9},boundaryGap:false},
+    yAxis:{type:'value',name:'万元',splitLine:{lineStyle:{color:'rgba(255,255,255,.04)'}},axisLabel:{color:'#7b86a6',fontSize:9}},
+    series:[{type:'line',data:d.map(function(r){return r.v}),smooth:true,symbol:'circle',symbolSize:5,
+      lineStyle:{color:'#3b82f6',width:2.5},itemStyle:{color:'#3b82f6'},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(59,130,246,.3)'},{offset:1,color:'rgba(59,130,246,.02)'}])}
+    }]
+  });
+}
+
+function renderFunnel(){
+  var c=ech('cFunnel');if(!c)return;
+  c.setOption({
+    tooltip:{trigger:'item',backgroundColor:'rgba(15,20,41,.96)',borderColor:'#333',textStyle:{color:'#e4e9f2'},
+      formatter:function(p){return p.name+'<br/><b>'+p.value.toLocaleString()+'</b> 户 ('+p.data.pct+'%)'}},
+    series:[{type:'funnel',left:'12%',top:10,bottom:10,width:'76%',min:4000,max:13000,sort:'descending',gap:2,
+      label:{show:true,position:'inside',fontSize:10,color:'#fff',formatter:function(p){return p.name}},
+      labelLine:{show:false},
+      data:[
+        {value:12856,name:'运行用户',pct:100,itemStyle:{color:'#3b82f6'}},
+        {value:11430,name:'数据开放',pct:88.9,itemStyle:{color:'#06b6d4'}},
+        {value:10892,name:'完成抄表',pct:84.7,itemStyle:{color:'#14b8a6'}},
+        {value:10560,name:'电费计算',pct:82.1,itemStyle:{color:'#10b981'}},
+        {value:9847, name:'电费核查',pct:76.6,itemStyle:{color:'#f59e0b'}},
+        {value:8912, name:'待发行',  pct:69.3,itemStyle:{color:'#8b5cf6'}},
+        {value:7845, name:'已发行',  pct:61.0,itemStyle:{color:'#ec4899'}}
+      ]
+    }]
+  });
+}
+
+function renderAnomaly(d){
+  var c=ech('cAnomaly');if(!c)return;
+  var cl=['#ef4444','#f59e0b','#f97316','#8b5cf6','#64748b'];
+  c.setOption({
+    tooltip:{trigger:'item',backgroundColor:'rgba(15,20,41,.96)',borderColor:'#333',textStyle:{color:'#e4e9f2',fontSize:11},formatter:'{b}: {c} 条 ({d}%)'},
+    legend:{bottom:0,textStyle:{color:'#7b86a6',fontSize:8},itemWidth:7,itemHeight:7},
+    series:[{type:'pie',radius:['45%','74%'],center:['50%','43%'],
+      itemStyle:{borderRadius:3,borderColor:'#080c1a',borderWidth:4},label:{show:false},
+      emphasis:{label:{show:true,fontSize:14,fontWeight:'bold',color:'#e4e9f2'}},
+      data:d.map(function(r,i){return{value:r.v,name:r.n,itemStyle:{color:cl[i]}}})
+    }]
+  });
+}
+
+function renderTop(d){
+  var c=ech('cTop');if(!c)return;
+  var rev=d.slice().reverse();
+  c.setOption({
+    tooltip:{trigger:'axis',backgroundColor:'rgba(15,20,41,.96)',borderColor:'#333',textStyle:{color:'#e4e9f2',fontSize:11},
+      formatter:function(p){return p[0].name+'<br/>用电量：<b>'+p[0].value+'</b> 万kWh'}},
+    grid:{left:88,right:12,top:6,bottom:18},
+    xAxis:{type:'value',splitLine:{lineStyle:{color:'rgba(255,255,255,.04)'}},axisLabel:{color:'#7b86a6',fontSize:8}},
+    yAxis:{type:'category',data:rev.map(function(r){return r.n}),axisLabel:{color:'#7b86a6',fontSize:9,width:82,overflow:'truncate'},axisLine:{lineStyle:{color:'#333'}}},
+    series:[{type:'bar',data:rev.map(function(r){return r.v}),barMaxWidth:14,
+      itemStyle:{borderRadius:[0,3,3,0],color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#06b6d4'},{offset:1,color:'#3b82f6'}])}
+    }]
+  });
+}
+
+function renderArrears(d){
+  var c=ech('cArrears');if(!c)return;
+  c.setOption({
+    tooltip:{trigger:'axis',backgroundColor:'rgba(15,20,41,.96)',borderColor:'#333',textStyle:{color:'#e4e9f2',fontSize:11}},
+    grid:{left:60,right:16,top:16,bottom:32},
+    xAxis:{type:'category',data:d.map(function(r){return r.u}),axisLabel:{color:'#7b86a6',fontSize:9,rotate:12},axisLine:{lineStyle:{color:'#333'}}},
+    yAxis:{type:'value',splitLine:{lineStyle:{color:'rgba(255,255,255,.04)'}},axisLabel:{color:'#7b86a6',fontSize:9}},
+    series:[{type:'bar',data:d.map(function(r){return{value:r.a,
+      itemStyle:{color:r.a>500?'#ef4444':r.a>300?'#f59e0b':r.a>200?'#f97316':'#06b6d4',borderRadius:[5,5,0,0]}}}),
+      barMaxWidth:38,label:{show:true,position:'top',fontSize:9,color:'#7b86a6',formatter:function(p){return p.value+'万'}}
+    }]
+  });
+}
+
+function renderAlerts(d){
+  var lvC={高:'#ef4444',中:'#f59e0b',低:'#64748b'};
+  document.getElementById('tblBody').innerHTML=d.map(function(a){
+    return'<tr><td style="color:var(--muted)">'+a.t+'</td><td>'+a.u+'</td><td>'+a.id+'</td><td>'+a.tp+'</td><td style="color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+a.desc+'</td><td><b style="color:'+(lvC[a.lv]||'#7b86a6')+'">'+a.lv+'</b></td><td><span class="badge '+a.sc+'">'+a.st+'</span></td></tr>';
+  }).join('');
+}
+
+window.addEventListener('resize',function(){Object.values(C).forEach(function(c){if(c)c.resize()})});
+
+(function init(){
+  var d=getData();
+  renderPipeline(d.pipeline);
+  renderFinance(d.finance);
+  renderBilling(d.billingTrend);
+  renderFunnel();
+  renderAnomaly(d.anomaly);
+  renderTop(d.topConsumption);
+  renderArrears(d.arrears);
+  renderAlerts(d.alerts);  // 从API加载真实pipeline数据
+  fetch('/api/dashboard/pipeline')
+    .then(function(r){return r.json()})
+    .then(function(res){
+      if(res.code===200&&res.data){
+        var p=res.data;
+        d.pipeline[0].val=p.totalUsers||0;
+        d.pipeline[1].val=p.dataOpenUsers||0;
+        d.pipeline[2].val=p.meterDoneUsers||0;
+        d.pipeline[3].val=p.calcUsers||0;
+        d.pipeline[4].val=p.auditUsers||0;
+        d.pipeline[5].val=p.issuedUsers||0;
+        renderPipeline(d.pipeline);
+      }
+    }).catch(function(){});
+  // 从API加载summary数据更新finance卡片
+  fetch('/api/dashboard/summary')
+    .then(function(r){return r.json()})
+    .then(function(res){
+      if(res.code===200&&res.data){
+        var s=res.data;
+        d.finance.totalFee=s.billingTotal||0;
+        d.finance.avgPrice=0.7382;
+        renderFinance(d.finance);
+      }
+    }).catch(function(){});})();
+</script>
+</body>
+</html>
